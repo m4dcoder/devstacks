@@ -1,0 +1,94 @@
+heat_template_version: 2014-10-16
+
+description: |
+    Webhook triggered autoscaling group for Docker cluster
+
+resources:
+
+    access_key:
+        type: OS::Nova::KeyPair
+        properties:
+            name: { get_param: "OS::stack_name" }
+            save_private_key: true
+
+    workers:
+        type: Rackspace::AutoScale::Group
+        properties:
+            groupConfiguration:
+                name: { get_param: "OS::stack_name" }
+                maxEntities: 5
+                minEntities: 1
+                cooldown: 120
+            launchConfiguration:
+                type: launch_server
+                args:
+                    server:
+                        name: { get_param: "OS::stack_name" }
+                        flavorRef: general1-1 # 1 GB General Purpose v1
+                        imageRef: 9b3ae961-0ba0-4d5a-973f-2e79043f0ddd # Ubuntu 16.04 LTS (Xenial Xerus) (PVHVM) 
+                        key_name: { get_resource: access_key }
+                        config_drive: true
+                        networks:
+                            - uuid: 00000000-0000-0000-0000-000000000000 # PublicNet
+                            - uuid: 11111111-1111-1111-1111-111111111111 # ServiceNet
+                            - uuid: 1ef7069a-1b89-4df6-9b76-11ea4ce562db # Internal
+
+    scale_up_policy:
+        type: Rackspace::AutoScale::ScalingPolicy
+        properties:
+            group: { get_resource: workers }
+            name:
+                str_replace:
+                    template: stack scale up policy
+                    params:
+                        stack: { get_param: "OS::stack_name" }
+            change: 1
+            cooldown: 600
+            type: webhook
+
+    scale_up_webhook:
+        type: Rackspace::AutoScale::WebHook
+        properties:
+            name:
+                str_replace:
+                    template: stack scale up hook
+                    params:
+                        stack: { get_param: "OS::stack_name" }
+            policy: { get_resource: scale_up_policy }
+
+    scale_down_policy:
+        type: Rackspace::AutoScale::ScalingPolicy
+        properties:
+            group: { get_resource: workers }
+            name:
+                str_replace:
+                    template: stack scale down policy
+                    params:
+                        stack: { get_param: "OS::stack_name" }
+            change: -1
+            cooldown: 600
+            type: webhook
+
+    scale_down_webhook:
+        type: Rackspace::AutoScale::WebHook
+        properties:
+            name:
+                str_replace:
+                    template: stack scale down hook
+                    params:
+                        stack: { get_param: "OS::stack_name" }
+            policy: { get_resource: scale_down_policy }
+
+outputs:
+
+    "Access Key":
+        value: { get_attr: [ access_key, private_key ] }
+        description: Access Key
+
+    "Scale Up Webhook":
+        value: { get_attr: [ scale_up_webhook, executeUrl ] }
+        description: Scale Up Webhook
+
+    "Scale Down Webhook":
+        value: { get_attr: [ scale_down_webhook, executeUrl ] }
+        description: Scale Down Webhook
