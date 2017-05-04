@@ -3,35 +3,46 @@ heat_template_version: 2014-10-16
 description: |
     Webhook triggered autoscaling group for Docker cluster
 
-resources:
+parameters:
 
-    access_key:
-        type: OS::Nova::KeyPair
-        properties:
-            name: { get_param: "OS::stack_name" }
-            save_private_key: true
+    key_name:
+        type: string
+        label: Key Name
+        description: Name of the server access key.
+
+    docker_swarm_manager:
+        type: string
+        label: Swarm Manager
+        description: Docker swarm manager.
+
+    docker_swarm_token:
+        type: string
+        label: Swarm Token
+        description: Token required to join an existing docker swarm.
+
+resources:
 
     workers:
         type: Rackspace::AutoScale::Group
         properties:
             groupConfiguration:
                 name: { get_param: "OS::stack_name" }
+                metadata:
+                    rax-heat: { get_param: "OS::stack_id" }
                 maxEntities: 5
-                minEntities: 1
+                minEntities: 2
                 cooldown: 120
             launchConfiguration:
-                type: launch_server
+                type: launch_stack
                 args:
-                    server:
-                        name: { get_param: "OS::stack_name" }
-                        flavorRef: general1-1 # 1 GB General Purpose v1
-                        imageRef: 9b3ae961-0ba0-4d5a-973f-2e79043f0ddd # Ubuntu 16.04 LTS (Xenial Xerus) (PVHVM) 
-                        key_name: { get_resource: access_key }
-                        config_drive: true
-                        networks:
-                            - uuid: 00000000-0000-0000-0000-000000000000 # PublicNet
-                            - uuid: 11111111-1111-1111-1111-111111111111 # ServiceNet
-                            - uuid: 1ef7069a-1b89-4df6-9b76-11ea4ce562db # Internal
+                    stack:
+                        template_url: https://raw.githubusercontent.com/m4dcoder/devstacks/master/openstack/heat/docker_worker.yaml
+                        disable_rollback: False
+                        parameters:
+                            key_name: { get_param: key_name }
+                            docker_swarm_manager: { get_param: docker_swarm_manager }
+                            docker_swarm_token: { get_param: docker_swarm_token }
+                        timeout_mins: 30
 
     scale_up_policy:
         type: Rackspace::AutoScale::ScalingPolicy
@@ -80,10 +91,6 @@ resources:
             policy: { get_resource: scale_down_policy }
 
 outputs:
-
-    "Access Key":
-        value: { get_attr: [ access_key, private_key ] }
-        description: Access Key
 
     "Scale Up Webhook":
         value: { get_attr: [ scale_up_webhook, executeUrl ] }
