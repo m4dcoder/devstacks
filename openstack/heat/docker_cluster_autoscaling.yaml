@@ -53,15 +53,23 @@ resources:
                             str_replace:
                                 template: |
                                     #!/bin/bash
+                                    sudo apt-get update
                                     sudo apt-get -y install nfs-common
-                                    sudo mount -t nfs -o proto=tcp,port=2049 FILE_SERVER:/data /mnt/share
+                                    sudo mkdir -p /share
+                                    sudo mkdir -p /faas
+                                    sudo mkdir -p /data
+                                    sudo mount -t nfs -o proto=tcp,port=2049 FILE_SERVER:/share /share
+                                    sudo mount -t nfs -o proto=tcp,port=2049 FILE_SERVER:/faas /faas
+                                    sudo mount -t nfs -o proto=tcp,port=2049 FILE_SERVER:/data /data
                                     sudo apt-get -y install apt-transport-https ca-certificates curl
                                     sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
                                     sudo add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
                                     sudo apt-get update
                                     sudo apt-get -y install docker-ce
                                     sudo docker swarm join --token SWARM_TOKEN SWARM_MANAGER:2377
+                                    sudo echo "OPSADMIN_SSH_PUB" >> /root/.ssh/authorized_keys
                                 params:
+                                    OPSADMIN_SSH_PUB: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7RjaVI5y8B2dM125CDuRqVPymMrrYhy95MwoytiAfG7TWH/izI4wyQrzy2LuKYS33YN07JgW5tm++inBurvlHVIophEPK4MSrZhZtPh+Ull+3ZPCit2R1csSilyVcaUKw4fqYBaVC7w4Ct5NnYv2bCqqm8sqTi+BKtRsoUdqPkx77PzKoQF4Ii0EGLSpBkNr05jgpRSK9cQC56VC5WCqItY+LE5Z2S0zpDZ3gUr0KPhUhRrFlXXcvYzCv/gvu2E5cP+VE39pd0syVogWp5fVyyLjVzQ6yvS+gXRzEROcq/ol1VUQVYyE5Q96qMLOG+kDD7FFItS/1pIKeO76C/gp5 opsadmin@stackstorm.com"
                                     FILE_SERVER: { get_param: nfs_file_server }
                                     SWARM_MANAGER: { get_param: docker_swarm_manager }
                                     SWARM_TOKEN: { get_param: docker_swarm_token }
